@@ -7,8 +7,8 @@
  @author Eddy Verbruggen
  */
 
-/** 
-  Updates to be more aligned with updated Android version and with Google.
+/**
+ Updates to be more aligned with updated Android version and with Google.
  @date March 15, 2015
  @author Sam Muggleworth (PointSource, LLC)
  */
@@ -19,9 +19,9 @@ static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelect
 @implementation AppDelegate (IdentityUrlHandling)
 
 + (void)load {
-  swizzleMethod([AppDelegate class],
-                @selector(application:openURL:sourceApplication:annotation:),
-                @selector(identity_application:openURL:sourceApplication:annotation:));
+    swizzleMethod([AppDelegate class],
+                  @selector(application:openURL:sourceApplication:annotation:),
+                  @selector(identity_application:openURL:sourceApplication:annotation:));
 }
 
 /** Google Sign-In SDK
@@ -32,7 +32,7 @@ static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelect
            sourceApplication: (NSString *)sourceApplication
                   annotation: (id)annotation {
     GooglePlus* gp = (GooglePlus*)[[self.viewController pluginObjects] objectForKey:@"GooglePlus"];
-
+    
     if ([gp isSigningIn]) {
         gp.isSigningIn = NO;
         return [[GIDSignIn sharedInstance] handleURL:url sourceApplication:sourceApplication annotation:annotation];
@@ -41,6 +41,9 @@ static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelect
         return [self identity_application:application openURL:url sourceApplication:sourceApplication annotation:annotation];
     }
 }
+
+- (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary *)options { return [[GIDSignIn sharedInstance] handleURL:url sourceApplication:options[UIApplicationOpenURLOptionsSourceApplicationKey] annotation:options[UIApplicationOpenURLOptionsAnnotationKey]]; }
+
 @end
 
 @implementation GooglePlus
@@ -49,12 +52,12 @@ static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelect
 // see https://code.google.com/p/google-plus-platform/issues/detail?id=900
 // Update: should be fine since we use the GoogleSignIn framework instead of the GooglePlus framework
 - (void) isAvailable:(CDVInvokedUrlCommand*)command {
-  CDVPluginResult * pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsBool:YES];
-  [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    CDVPluginResult * pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsBool:YES];
+    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
 - (void) login:(CDVInvokedUrlCommand*)command {
-  [[self getGIDSignInObject:command] signIn];
+    [[self getGIDSignInObject:command] signIn];
 }
 
 /** Get Google Sign-In object
@@ -72,31 +75,31 @@ static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelect
     _callbackId = command.callbackId;
     NSDictionary* options = [command.arguments objectAtIndex:0];
     NSString *reversedClientId = [self getreversedClientId];
-
+    
     if (reversedClientId == nil) {
         CDVPluginResult * pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find REVERSED_CLIENT_ID url scheme in app .plist"];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:_callbackId];
         return nil;
     }
-
+    
     NSString *clientId = [self reverseUrlScheme:reversedClientId];
-
+    
     NSString* scopesString = [options objectForKey:@"scopes"];
     NSString* serverClientId = [options objectForKey:@"webClientId"];
     BOOL offline = [options objectForKey:@"offline"];
-
-
+    
+    
     GIDSignIn *signIn = [GIDSignIn sharedInstance];
     signIn.clientID = clientId;
-
+    
     if (serverClientId != nil && offline) {
-      signIn.serverClientID = serverClientId;
+        signIn.serverClientID = serverClientId;
     }
-
+    
     signIn.allowsSignInWithBrowser = NO; // Otherwise your app get rejected
     signIn.uiDelegate = self;
     signIn.delegate = self;
-
+    
     // default scopes are email and profile
     if (scopesString != nil) {
         NSArray* scopes = [scopesString componentsSeparatedByString:@" "];
@@ -108,43 +111,43 @@ static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelect
 }
 
 - (NSString*) reverseUrlScheme:(NSString*)scheme {
-  NSArray* originalArray = [scheme componentsSeparatedByString:@"."];
-  NSArray* reversedArray = [[originalArray reverseObjectEnumerator] allObjects];
-  NSString* reversedString = [reversedArray componentsJoinedByString:@"."];
-  return reversedString;
+    NSArray* originalArray = [scheme componentsSeparatedByString:@"."];
+    NSArray* reversedArray = [[originalArray reverseObjectEnumerator] allObjects];
+    NSString* reversedString = [reversedArray componentsJoinedByString:@"."];
+    return reversedString;
 }
 
 - (NSString*) getreversedClientId {
-  NSArray* URLTypes = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleURLTypes"];
-
-  if (URLTypes != nil) {
-    for (NSDictionary* dict in URLTypes) {
-      NSString *urlName = [dict objectForKey:@"CFBundleURLName"];
-      if ([urlName isEqualToString:@"REVERSED_CLIENT_ID"]) {
-        NSArray* URLSchemes = [dict objectForKey:@"CFBundleURLSchemes"];
-        if (URLSchemes != nil) {
-          return [URLSchemes objectAtIndex:0];
+    NSArray* URLTypes = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleURLTypes"];
+    
+    if (URLTypes != nil) {
+        for (NSDictionary* dict in URLTypes) {
+            NSString *urlName = [dict objectForKey:@"CFBundleURLName"];
+            if ([urlName isEqualToString:@"REVERSED_CLIENT_ID"]) {
+                NSArray* URLSchemes = [dict objectForKey:@"CFBundleURLSchemes"];
+                if (URLSchemes != nil) {
+                    return [URLSchemes objectAtIndex:0];
+                }
+            }
         }
-      }
     }
-  }
-  return nil;
+    return nil;
 }
 
 - (void) logout:(CDVInvokedUrlCommand*)command {
-  [[GIDSignIn sharedInstance] signOut];
-  CDVPluginResult * pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"logged out"];
-  [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    [[GIDSignIn sharedInstance] signOut];
+    CDVPluginResult * pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"logged out"];
+    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
 - (void) disconnect:(CDVInvokedUrlCommand*)command {
-  [[GIDSignIn sharedInstance] disconnect];
-  CDVPluginResult * pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"disconnected"];
-  [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    [[GIDSignIn sharedInstance] disconnect];
+    CDVPluginResult * pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"disconnected"];
+    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
 - (void) share_unused:(CDVInvokedUrlCommand*)command {
-  // for a rainy day.. see for a (limited) example https://github.com/vleango/GooglePlus-PhoneGap-iOS/blob/master/src/ios/GPlus.m
+    // for a rainy day.. see for a (limited) example https://github.com/vleango/GooglePlus-PhoneGap-iOS/blob/master/src/ios/GPlus.m
 }
 
 #pragma mark - GIDSignInDelegate
@@ -164,16 +167,16 @@ static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelect
         NSString *serverAuthCode = user.serverAuthCode != nil ? user.serverAuthCode : @"";
         NSURL *imageUrl = [user.profile imageURLWithDimension:120]; // TODO pass in img size as param, and try to sync with Android
         NSDictionary *result = @{
-                       @"email"           : email,
-                       @"idToken"         : idToken,
-                       @"serverAuthCode"  : serverAuthCode,
-                       @"accessToken"     : accessToken,
-                       @"refreshToken"    : refreshToken,
-                       @"userId"          : userId,
-                       @"displayName"     : user.profile.name ? : [NSNull null],
-                       @"imageUrl"        : imageUrl ? imageUrl.absoluteString : [NSNull null],
-                       };
-
+                                 @"email"           : email,
+                                 @"idToken"         : idToken,
+                                 @"serverAuthCode"  : serverAuthCode,
+                                 @"accessToken"     : accessToken,
+                                 @"refreshToken"    : refreshToken,
+                                 @"userId"          : userId,
+                                 @"displayName"     : user.profile.name ? : [NSNull null],
+                                 @"imageUrl"        : imageUrl ? imageUrl.absoluteString : [NSNull null],
+                                 };
+        
         CDVPluginResult * pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:result];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:_callbackId];
     }
@@ -199,13 +202,13 @@ static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelect
 @end
 
 static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelector) {
-  Method destinationMethod = class_getInstanceMethod(class, destinationSelector);
-  Method sourceMethod = class_getInstanceMethod(class, sourceSelector);
-
-  // If the method doesn't exist, add it.  If it does exist, replace it with the given implementation.
-  if (class_addMethod(class, destinationSelector, method_getImplementation(sourceMethod), method_getTypeEncoding(sourceMethod))) {
-    class_replaceMethod(class, destinationSelector, method_getImplementation(destinationMethod), method_getTypeEncoding(destinationMethod));
-  } else {
-    method_exchangeImplementations(destinationMethod, sourceMethod);
-  }
+    Method destinationMethod = class_getInstanceMethod(class, destinationSelector);
+    Method sourceMethod = class_getInstanceMethod(class, sourceSelector);
+    
+    // If the method doesn't exist, add it.  If it does exist, replace it with the given implementation.
+    if (class_addMethod(class, destinationSelector, method_getImplementation(sourceMethod), method_getTypeEncoding(sourceMethod))) {
+        class_replaceMethod(class, destinationSelector, method_getImplementation(destinationMethod), method_getTypeEncoding(destinationMethod));
+    } else {
+        method_exchangeImplementations(destinationMethod, sourceMethod);
+    }
 }
