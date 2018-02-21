@@ -21,12 +21,8 @@ static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelect
 
 + (void)load {
     swizzleMethod([AppDelegate class],
-                @selector(application:openURL:sourceApplication:annotation:),
-                @selector(identity_application:openURL:sourceApplication:annotation:));
-
-    swizzleMethod([AppDelegate class],
-                @selector(application:openURL:options:),
-                @selector(indentity_application_options:openURL:options:));
+                  @selector(application:openURL:sourceApplication:annotation:),
+                  @selector(identity_application:openURL:sourceApplication:annotation:));
 }
 
 /** Google Sign-In SDK
@@ -79,28 +75,6 @@ static void swizzleMethod(Class class, SEL destinationSelector, SEL sourceSelect
                                annotation:annotation];
 }
 
-/**
-From https://github.com/EddyVerbruggen/cordova-plugin-googleplus/issues/227#issuecomment-227674026
-Fixes issue with G+ login window not closing correctly on ios 9
-*/
-- (BOOL)indentity_application_options: (UIApplication *)app
-            openURL: (NSURL *)url
-            options: (NSDictionary *)options
-{
-    GooglePlus* gp = (GooglePlus*) [self.viewController pluginObjects][@"GooglePlus"];
-
-    if ([gp isSigningIn]) {
-        gp.isSigningIn = NO;
-        return [[GIDSignIn sharedInstance] handleURL:url
-            sourceApplication:options[UIApplicationOpenURLOptionsSourceApplicationKey]
-            annotation:options[UIApplicationOpenURLOptionsAnnotationKey]];
-    } else {
-        // Other
-        return [self application:app openURL:url
-            sourceApplication:options[UIApplicationOpenURLOptionsSourceApplicationKey]
-            annotation:options[UIApplicationOpenURLOptionsAnnotationKey]];
-    }
-}
 @end
 
 @implementation GooglePlus
@@ -130,7 +104,7 @@ Fixes issue with G+ login window not closing correctly on ios 9
  */
 - (GIDSignIn*) getGIDSignInObject:(CDVInvokedUrlCommand*)command {
     _callbackId = command.callbackId;
-    NSDictionary* options = command.arguments[0];
+    NSDictionary* options = [command.arguments objectAtIndex:0];
     NSString *reversedClientId = [self getreversedClientId];
     
     if (reversedClientId == nil) {
@@ -140,28 +114,20 @@ Fixes issue with G+ login window not closing correctly on ios 9
     }
     
     NSString *clientId = [self reverseUrlScheme:reversedClientId];
-
-    NSString* scopesString = options[@"scopes"];
-    NSString* serverClientId = options[@"webClientId"];
-    NSString *loginHint = options[@"loginHint"];
-    BOOL offline = [options[@"offline"] boolValue];
-    NSString* hostedDomain = options[@"hostedDomain"];
-
-
+    
+    NSString* scopesString = [options objectForKey:@"scopes"];
+    NSString* serverClientId = [options objectForKey:@"webClientId"];
+    BOOL offline = [options objectForKey:@"offline"];
+    
+    
     GIDSignIn *signIn = [GIDSignIn sharedInstance];
     signIn.clientID = clientId;
-
-    [signIn setLoginHint:loginHint];
-
+    
     if (serverClientId != nil && offline) {
         signIn.serverClientID = serverClientId;
     }
     
     signIn.allowsSignInWithBrowser = NO; // Otherwise your app get rejected
-    if (hostedDomain != nil) {
-        signIn.hostedDomain = hostedDomain;
-    }
-
     signIn.uiDelegate = self;
     signIn.delegate = self;
     
@@ -170,6 +136,8 @@ Fixes issue with G+ login window not closing correctly on ios 9
         NSArray* scopes = [scopesString componentsSeparatedByString:@" "];
         [signIn setScopes:scopes];
     }
+    [signIn setAllowsSignInWithBrowser:NO]; // disabling as this may be a rejection reason for Apple
+    [signIn setAllowsSignInWithWebView:YES]; // assuming this should be fine
     return signIn;
 }
 
@@ -181,15 +149,17 @@ Fixes issue with G+ login window not closing correctly on ios 9
 }
 
 - (NSString*) getreversedClientId {
-  NSArray* URLTypes = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleURLTypes"];
-
-  if (URLTypes != nil) {
-    for (NSDictionary* dict in URLTypes) {
-      NSString *urlName = dict[@"CFBundleURLName"];
-      if ([urlName isEqualToString:@"REVERSED_CLIENT_ID"]) {
-        NSArray* URLSchemes = dict[@"CFBundleURLSchemes"];
-        if (URLSchemes != nil) {
-          return URLSchemes[0];
+    NSArray* URLTypes = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleURLTypes"];
+    
+    if (URLTypes != nil) {
+        for (NSDictionary* dict in URLTypes) {
+            NSString *urlName = [dict objectForKey:@"CFBundleURLName"];
+            if ([urlName isEqualToString:@"REVERSED_CLIENT_ID"]) {
+                NSArray* URLSchemes = [dict objectForKey:@"CFBundleURLSchemes"];
+                if (URLSchemes != nil) {
+                    return [URLSchemes objectAtIndex:0];
+                }
+            }
         }
     }
     return nil;
@@ -228,18 +198,16 @@ Fixes issue with G+ login window not closing correctly on ios 9
         NSString *serverAuthCode = user.serverAuthCode != nil ? user.serverAuthCode : @"";
         NSURL *imageUrl = [user.profile imageURLWithDimension:120]; // TODO pass in img size as param, and try to sync with Android
         NSDictionary *result = @{
-                       @"email"           : email,
-                       @"idToken"         : idToken,
-                       @"serverAuthCode"  : serverAuthCode,
-                       @"accessToken"     : accessToken,
-                       @"refreshToken"    : refreshToken,
-                       @"userId"          : userId,
-                       @"displayName"     : user.profile.name       ? : [NSNull null],
-                       @"givenName"       : user.profile.givenName  ? : [NSNull null],
-                       @"familyName"      : user.profile.familyName ? : [NSNull null],
-                       @"imageUrl"        : imageUrl ? imageUrl.absoluteString : [NSNull null],
-                       };
-
+                                 @"email"           : email,
+                                 @"idToken"         : idToken,
+                                 @"serverAuthCode"  : serverAuthCode,
+                                 @"accessToken"     : accessToken,
+                                 @"refreshToken"    : refreshToken,
+                                 @"userId"          : userId,
+                                 @"displayName"     : user.profile.name ? : [NSNull null],
+                                 @"imageUrl"        : imageUrl ? imageUrl.absoluteString : [NSNull null],
+                                 };
+        
         CDVPluginResult * pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:result];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:_callbackId];
     }
